@@ -1,6 +1,6 @@
 import type { StudentInput, PredictionResponse } from './types'
 
-const API_URL = 'https://mobile-reg-app-analysis.onrender.com'
+const API_URL = 'https://web-reg-app-production.up.railway.app'
 
 export async function predictScore(input: StudentInput): Promise<PredictionResponse> {
   const res = await fetch(`${API_URL}/predict`, {

@@ -70,7 +70,7 @@ app = FastAPI(
     version="1.0.0",
     contact={
         "name": "Student Score Predictor",
-        "url": "https://mobile-reg-app-analysis.onrender.com",
+        "url": "https://web-reg-app-production.up.railway.app",
     },
     openapi_tags=tags_metadata,
     docs_url=None,   # Serve a custom /docs
@@ -88,7 +88,7 @@ app.add_middleware(
         "http://localhost:8080",
         "http://10.0.2.2",          # Android emulator 
         "http://10.0.2.2:8000",
-        "https://mobile-reg-app-analysis.onrender.com",
+        "https://web-reg-app-production.up.railway.app",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
