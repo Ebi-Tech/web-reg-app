@@ -129,6 +129,30 @@ FEATURE_ORDER = [
     "Learning_Disabilities", "Parental_Education_Level", "Distance_from_Home",
 ]
 
+NUMERIC_OPTIMAL = {
+    "Hours_Studied": 44,
+    "Attendance": 100,
+    "Sleep_Hours": 8,
+    "Previous_Scores": 100,
+    "Tutoring_Sessions": 8,
+    "Physical_Activity": 6,
+}
+
+CATEGORICAL_OPTIONS = {
+    "Parental_Involvement":       ["Low", "Medium", "High"],
+    "Access_to_Resources":        ["Low", "Medium", "High"],
+    "Extracurricular_Activities": ["Yes", "No"],
+    "Motivation_Level":           ["Low", "Medium", "High"],
+    "Internet_Access":            ["Yes", "No"],
+    "Family_Income":              ["Low", "Medium", "High"],
+    "Teacher_Quality":            ["Low", "Medium", "High"],
+    "School_Type":                ["Public", "Private"],
+    "Peer_Influence":             ["Positive", "Neutral", "Negative"],
+    "Learning_Disabilities":      ["Yes", "No"],
+    "Parental_Education_Level":   ["High School", "College", "Postgraduate"],
+    "Distance_from_Home":         ["Near", "Moderate", "Far"],
+}
+
 # ---------------------------------------------------------------------------
 # Named request body examples
 # ---------------------------------------------------------------------------
@@ -222,10 +246,17 @@ class StudentInput(BaseModel):
     Distance_from_Home:         Literal["Near", "Moderate", "Far"] = Field(..., description="Distance from home to school")
 
 
+class WeakFactor(BaseModel):
+    factor:         str   = Field(..., description="Feature name")
+    current_value:  str   = Field(..., description="Student's current value for this factor")
+    potential_gain: float = Field(..., description="Estimated score increase if this factor is improved to optimal")
+
+
 class PredictionResponse(BaseModel):
-    predicted_exam_score: float = Field(..., description="Predicted exam score in points", example=67.45)
-    unit:                 str   = Field(default="points", description="Unit of the predicted score")
-    score_range:          str   = Field(default="55–101", description="Valid score range for this model")
+    predicted_exam_score: float            = Field(..., description="Predicted exam score in points", example=67.45)
+    unit:                 str              = Field(default="points", description="Unit of the predicted score")
+    score_range:          str              = Field(default="55–101", description="Valid score range for this model")
+    weak_factors:         list[WeakFactor] = Field(default_factory=list, description="Top 3 factors with highest improvement potential")
 
 
 class HealthResponse(BaseModel):
@@ -240,7 +271,7 @@ class RetrainResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Helper
+# Helpers
 # ---------------------------------------------------------------------------
 def encode_input(data: StudentInput) -> np.ndarray:
     raw = {
@@ -265,6 +296,35 @@ def encode_input(data: StudentInput) -> np.ndarray:
     }
     row = [raw[f] for f in FEATURE_ORDER]
     return np.array(row, dtype=float).reshape(1, -1)
+
+
+def _predict_score(data: StudentInput) -> float:
+    X_sc = scaler.transform(encode_input(data))
+    return max(55.0, min(101.0, float(model.predict(X_sc)[0])))
+
+
+def compute_weak_factors(data: StudentInput, current_score: float) -> list[WeakFactor]:
+    data_dict = data.model_dump()
+    improvements = []
+
+    for feature in FEATURE_ORDER:
+        current_val = data_dict[feature]
+        candidates = [NUMERIC_OPTIMAL[feature]] if feature in NUMERIC_OPTIMAL else CATEGORICAL_OPTIONS[feature]
+
+        best_val, best_score = current_val, current_score
+        for candidate in candidates:
+            if candidate == current_val:
+                continue
+            s = _predict_score(StudentInput(**{**data_dict, feature: candidate}))
+            if s > best_score:
+                best_score, best_val = s, candidate
+
+        gain = round(best_score - current_score, 2)
+        if gain > 0.05:
+            improvements.append(WeakFactor(factor=feature, current_value=str(current_val), potential_gain=gain))
+
+    improvements.sort(key=lambda x: x.potential_gain, reverse=True)
+    return improvements[:3]
 
 
 # ---------------------------------------------------------------------------
@@ -574,12 +634,12 @@ def predict(
     try:
         X        = encode_input(student)
         X_scaled = scaler.transform(X)
-        score    = float(model.predict(X_scaled)[0])
-        score    = round(max(55.0, min(101.0, score)), 2)
+        score    = round(max(55.0, min(101.0, float(model.predict(X_scaled)[0])), ), 2)
         return PredictionResponse(
             predicted_exam_score=score,
             unit="points",
             score_range="55–101",
+            weak_factors=compute_weak_factors(student, score),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

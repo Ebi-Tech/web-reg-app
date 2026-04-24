@@ -19,10 +19,17 @@ export interface StudentInput {
   Distance_from_Home: 'Near' | 'Moderate' | 'Far'
 }
 
+export interface WeakFactor {
+  factor: string
+  current_value: string
+  potential_gain: number
+}
+
 export interface PredictionResponse {
   predicted_exam_score: number
   unit: string
   score_range: string
+  weak_factors: WeakFactor[]
 }
 
 export type PerformanceBand = 'high' | 'on-track' | 'needs-support' | 'at-risk'
