@@ -89,6 +89,7 @@ app.add_middleware(
         "http://10.0.2.2",          # Android emulator 
         "http://10.0.2.2:8000",
         "https://web-reg-app-production.up.railway.app",
+        "https://web-reg-app.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
