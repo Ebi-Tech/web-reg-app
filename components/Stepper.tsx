@@ -6,7 +6,7 @@ import AcademicProfile from './steps/AcademicProfile'
 import LearningEnvironment from './steps/LearningEnvironment'
 import PredictionResult from './steps/PredictionResult'
 import { predictScore } from '@/lib/api'
-import type { StudentInput } from '@/lib/types'
+import type { StudentInput, WeakFactor } from '@/lib/types'
 
 const DEFAULT: StudentInput = {
   Hours_Studied: 20,
@@ -35,6 +35,7 @@ export default function Stepper() {
   const [step, setStep] = useState(0)
   const [data, setData] = useState<StudentInput>(DEFAULT)
   const [score, setScore] = useState<number | null>(null)
+  const [weakFactors, setWeakFactors] = useState<WeakFactor[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,6 +49,7 @@ export default function Stepper() {
     try {
       const res = await predictScore(data)
       setScore(res.predicted_exam_score)
+      setWeakFactors(res.weak_factors)
       setStep(2)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Prediction failed. Please try again.')
@@ -59,6 +61,7 @@ export default function Stepper() {
   function handleReset() {
     setStep(0)
     setScore(null)
+    setWeakFactors([])
     setError(null)
     setData(DEFAULT)
   }
@@ -92,7 +95,7 @@ export default function Stepper() {
       )}
 
       {step === 2 && score !== null && (
-        <PredictionResult score={score} onReset={handleReset} />
+        <PredictionResult score={score} weakFactors={weakFactors} onReset={handleReset} />
       )}
     </div>
   )

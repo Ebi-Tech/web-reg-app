@@ -1,39 +1,44 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import ScoreGauge from '@/components/ui/ScoreGauge'
-import { getPerformanceBand, type PerformanceBand } from '@/lib/types'
-
-const TIPS: Record<PerformanceBand, string[]> = {
-  high: [
-    'Outstanding! Your study habits and support system are working.',
-    'Consider mentoring peers — teaching reinforces your own understanding.',
-    'Challenge yourself with advanced topics or competitions to keep growing.',
-  ],
-  'on-track': [
-    "You're doing well. A small push can get you to the top.",
-    'Try spaced repetition to lock in what you study — review material after 1 day, 1 week, 1 month.',
-    'Increasing your study hours by just 2–3 hours a week can make a significant difference.',
-  ],
-  'needs-support': [
-    'Focus on attendance first — missing class is the fastest way to fall further behind.',
-    'Look into free tutoring resources at your school or on platforms like Khan Academy.',
-    'Break study sessions into focused 25-minute blocks (Pomodoro technique) to improve concentration.',
-  ],
-  'at-risk': [
-    'Talk to your teacher or school counselor — early support makes the biggest difference.',
-    'Prioritize showing up to class consistently, even when it feels difficult.',
-    'Identify your biggest barrier (motivation, resources, home environment) and tackle that one thing first.',
-  ],
-}
+import { getPerformanceBand, BAND_COLORS, getPerformanceLabel, type WeakFactor } from '@/lib/types'
 
 interface Props {
   score: number
+  weakFactors: WeakFactor[]
   onReset: () => void
 }
 
-export default function PredictionResult({ score, onReset }: Props) {
+export default function PredictionResult({ score, weakFactors, onReset }: Props) {
   const band = getPerformanceBand(score)
-  const tips = TIPS[band]
+  const bandColor = BAND_COLORS[band]
+
+  const [advice, setAdvice] = useState<string | null>(null)
+  const [adviceLoading, setAdviceLoading] = useState(true)
+  const [adviceError, setAdviceError] = useState(false)
+
+  useEffect(() => {
+    async function fetchAdvice() {
+      try {
+        const res = await fetch('/api/advice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ score, weak_factors: weakFactors }),
+        })
+        if (!res.ok) throw new Error()
+        const data = await res.json() as { advice: string }
+        setAdvice(data.advice)
+      } catch {
+        setAdviceError(true)
+      } finally {
+        setAdviceLoading(false)
+      }
+    }
+    fetchAdvice()
+  }, [score, weakFactors])
+
+  const paragraphs = advice?.split(/\n\n+/).filter(Boolean) ?? []
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -44,17 +49,49 @@ export default function PredictionResult({ score, onReset }: Props) {
 
       <ScoreGauge score={score} />
 
-      <div className="w-full bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <h3 className="text-sm font-bold text-navy mb-3">Personalised Tips</h3>
-        <ul className="flex flex-col gap-3">
-          {tips.map((tip, i) => (
-            <li key={i} className="flex gap-2.5 text-sm text-gray-700">
-              <span className="text-navy font-bold shrink-0 mt-px">•</span>
-              <span>{tip}</span>
-            </li>
-          ))}
-        </ul>
+      <div
+        className="w-full rounded-2xl px-5 py-3 text-center font-semibold text-white text-sm"
+        style={{ backgroundColor: bandColor }}
+      >
+        {getPerformanceLabel(band)}
       </div>
+
+      <div className="w-full bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <h3 className="text-sm font-bold text-navy mb-3">Personalised Advice</h3>
+
+        {adviceLoading && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className="w-4 h-4 border-2 border-navy border-t-transparent rounded-full animate-spin shrink-0" />
+            Generating research-backed advice…
+          </div>
+        )}
+
+        {adviceError && (
+          <p className="text-sm text-red-600">Could not load advice. Please try again.</p>
+        )}
+
+        {!adviceLoading && !adviceError && (
+          <div className="flex flex-col gap-3">
+            {paragraphs.map((para, i) => (
+              <p key={i} className="text-sm text-gray-700 leading-relaxed">{para}</p>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {weakFactors.length > 0 && (
+        <div className="w-full bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h3 className="text-sm font-bold text-navy mb-3">Top Factors to Improve</h3>
+          <div className="flex flex-col gap-2">
+            {weakFactors.map((f) => (
+              <div key={f.factor} className="flex items-center justify-between text-sm">
+                <span className="text-gray-700">{f.factor.replace(/_/g, ' ')}</span>
+                <span className="font-semibold text-navy">+{f.potential_gain} pts potential</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <button
         type="button"
